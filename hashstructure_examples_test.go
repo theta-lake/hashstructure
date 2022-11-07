@@ -1,6 +1,7 @@
 package hashstructure
 
 import (
+	"crypto/sha256"
 	"fmt"
 )
 
@@ -21,14 +22,15 @@ func ExampleHash() {
 		},
 	}
 
-	hash, err := Hash(v, FormatV2, nil)
+	hasher := sha256.New()
+	_, err := Hash(v, FormatV2, &HashOptions{Hasher: hasher})
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Printf("%d", hash)
+	fmt.Printf("%d", hasher.Sum(nil))
 	// Output:
-	// 1839806922502695369
+	// [59 211 209 211 148 28 150 169 196 203 223 172 124 19 44 68 61 179 84 224 195 75 194 37 64 184 169 150 146 17 214 37]
 }
 
 func ExampleHash_v1() {
@@ -55,5 +57,5 @@ func ExampleHash_v1() {
 
 	fmt.Printf("%d", hash)
 	// Output:
-	// 6691276962590150517
+	// [8 54 108 169 168 105 61 236]
 }
