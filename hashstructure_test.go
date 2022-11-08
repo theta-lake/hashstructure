@@ -40,7 +40,7 @@ func TestHash_identity(t *testing.T) {
 	for _, tc := range cases {
 		// We run the test 100 times to try to tease out variability
 		// in the runtime in terms of ordering.
-		valuelist := make([]uint64, 100)
+		valuelist := make([][]byte, 100)
 		for i := range valuelist {
 			v, err := Hash(tc, testFormat, nil)
 			if err != nil {
@@ -51,14 +51,15 @@ func TestHash_identity(t *testing.T) {
 		}
 
 		// Zero is always wrong
-		if valuelist[0] == 0 {
+		if len(valuelist[0]) == 0 {
 			t.Fatalf("zero hash: %#v", tc)
 		}
 
 		// Make sure all the values match
 		t.Logf("%#v: %d", tc, valuelist[0])
 		for i := 1; i < len(valuelist); i++ {
-			if valuelist[i] != valuelist[0] {
+
+			if !testEq(valuelist[i], valuelist[0]) {
 				t.Fatalf("non-matching: %d, %d\n\n%#v", i, 0, tc)
 			}
 		}
@@ -184,12 +185,12 @@ func TestHash_equal(t *testing.T) {
 			}
 
 			// Zero is always wrong
-			if one == 0 {
+			if len(one) == 0 {
 				t.Fatalf("zero hash: %#v", tc.One)
 			}
 
 			// Compare
-			if (one == two) != tc.Match {
+			if testEq(one, two) != tc.Match {
 				t.Fatalf("bad, expected: %#v\n\n%#v\n\n%#v", tc.Match, tc.One, tc.Two)
 			}
 		})
@@ -280,12 +281,12 @@ func TestHash_equalIgnore(t *testing.T) {
 		}
 
 		// Zero is always wrong
-		if one == 0 {
+		if len(one) == 0 {
 			t.Fatalf("zero hash: %#v", tc.One)
 		}
 
 		// Compare
-		if (one == two) != tc.Match {
+		if testEq(one, two) != tc.Match {
 			t.Fatalf("bad, expected: %#v\n\n%#v\n\n%#v", tc.Match, tc.One, tc.Two)
 		}
 	}
@@ -409,12 +410,12 @@ func TestHash_equalNil(t *testing.T) {
 		}
 
 		// Zero is always wrong
-		if one == 0 {
+		if len(one) == 0 {
 			t.Fatalf("zero hash: %#v", tc.One)
 		}
 
 		// Compare
-		if (one == two) != tc.Match {
+		if testEq(one, two) != tc.Match {
 			t.Fatalf("bad, expected: %#v\n\n%#v\n\n%#v", tc.Match, tc.One, tc.Two)
 		}
 	}
@@ -441,6 +442,18 @@ func TestHash_equalSet(t *testing.T) {
 			Test{Name: "foo", Friends: []string{"foo", "bar"}},
 			true,
 		},
+
+		{
+			Test{Name: "foo", Friends: []string{"foo", "bar", "bar"}},
+			Test{Name: "foo", Friends: []string{"foo", "bar"}},
+			true,
+		},
+
+		{
+			Test{Name: "foo", Friends: []string{"foo", "bar", "bar"}},
+			Test{Name: "foo", Friends: []string{"foo"}},
+			false,
+		},
 	}
 
 	for _, tc := range cases {
@@ -454,12 +467,12 @@ func TestHash_equalSet(t *testing.T) {
 		}
 
 		// Zero is always wrong
-		if one == 0 {
+		if len(one) == 0 {
 			t.Fatalf("zero hash: %#v", tc.One)
 		}
 
 		// Compare
-		if (one == two) != tc.Match {
+		if testEq(one, two) != tc.Match {
 			t.Fatalf("bad, expected: %#v\n\n%#v\n\n%#v", tc.Match, tc.One, tc.Two)
 		}
 	}
@@ -500,12 +513,12 @@ func TestHash_includable(t *testing.T) {
 		}
 
 		// Zero is always wrong
-		if one == 0 {
+		if len(one) == 0 {
 			t.Fatalf("zero hash: %#v", tc.One)
 		}
 
 		// Compare
-		if (one == two) != tc.Match {
+		if testEq(one, two) != tc.Match {
 			t.Fatalf("bad, expected: %#v\n\n%#v\n\n%#v", tc.Match, tc.One, tc.Two)
 		}
 	}
@@ -549,7 +562,7 @@ func TestHash_ignoreZeroValue(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to hash %#v: %s", structB, err)
 		}
-		if (hashA == hashB) != tc.IgnoreZeroValue {
+		if testEq(hashA, hashB) != tc.IgnoreZeroValue {
 			t.Fatalf("bad, expected: %#v\n\n%d\n\n%d", tc.IgnoreZeroValue, hashA, hashB)
 		}
 	}
@@ -590,12 +603,12 @@ func TestHash_includableMap(t *testing.T) {
 		}
 
 		// Zero is always wrong
-		if one == 0 {
+		if len(one) == 0 {
 			t.Fatalf("zero hash: %#v", tc.One)
 		}
 
 		// Compare
-		if (one == two) != tc.Match {
+		if testEq(one, two) != tc.Match {
 			t.Fatalf("bad, expected: %#v\n\n%#v\n\n%#v", tc.Match, tc.One, tc.Two)
 		}
 	}
@@ -664,12 +677,12 @@ func TestHash_hashable(t *testing.T) {
 			}
 
 			// Zero is always wrong
-			if one == 0 {
+			if len(one) == 0 {
 				t.Fatalf("zero hash: %#v", tc.One)
 			}
 
 			// Compare
-			if (one == two) != tc.Match {
+			if testEq(one, two) != tc.Match {
 				t.Fatalf("bad, expected: %#v\n\n%#v\n\n%#v", tc.Match, tc.One, tc.Two)
 			}
 		})
@@ -706,26 +719,38 @@ type testHashable struct {
 	Err   error
 }
 
-func (t testHashable) Hash() (uint64, error) {
+func (t testHashable) Hash() ([]byte, error) {
 	if t.Err != nil {
-		return 0, t.Err
+		return []byte{}, t.Err
 	}
 
 	if strings.HasPrefix(t.Value, "foo") {
-		return 500, nil
+		return []byte{0, 0}, nil
 	}
 
-	return 100, nil
+	return []byte{1, 1}, nil
 }
 
 type testHashablePointer struct {
 	Value string
 }
 
-func (t *testHashablePointer) Hash() (uint64, error) {
+func (t *testHashablePointer) Hash() ([]byte, error) {
 	if strings.HasPrefix(t.Value, "foo") {
-		return 500, nil
+		return []byte{0, 0}, nil
 	}
 
-	return 100, nil
+	return []byte{1, 1}, nil
+}
+
+func testEq(a, b []byte) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
