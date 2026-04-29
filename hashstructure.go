@@ -206,9 +206,18 @@ func (w *walker) visit(v reflect.Value, opts *visitOpts) ([]byte, error) {
 	switch v.Type() {
 	case timeType:
 		w.h.Reset()
-		b, err := v.Interface().(time.Time).MarshalBinary()
+		t := v.Interface().(time.Time)
+		b, err := t.MarshalBinary()
 		if err != nil {
-			return []byte{}, err
+			// time.MarshalBinary rejects a small set of sub-hour timezone
+			// offsets (notably -1 minute, which collides with the UTC
+			// sentinel inside MarshalBinary itself). The instant is well
+			// defined regardless, so fall back to the UTC representation
+			// of the same instant rather than erroring the entire hash.
+			b, err = t.UTC().MarshalBinary()
+			if err != nil {
+				return []byte{}, err
+			}
 		}
 
 		err = binary.Write(w.h, binary.LittleEndian, b)
